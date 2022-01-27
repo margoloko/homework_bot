@@ -16,6 +16,12 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler(stream=sys.stdout)
+logger.addHandler(handler)
+handler.setFormatter(Formatter(
+    '%(asctime)s, %(levelname)s,%(message)s, %(lineno)d, %(funcName)s'))
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -34,7 +40,7 @@ def send_message(bot, message):
             text=message,)
         logging.info('Сообщение успешно отправлено')
         return True
-    except Exception as error:
+    except telegram.error as error:
         logging.error(f'Cбой при отправке сообщения в Telegram:{error}')
         return False
 
@@ -48,7 +54,7 @@ def get_api_answer(current_timestamp):
         if response.status_code != HTTPStatus.OK:
             logging.error('HTTP-запрос вернул неверный код состояния')
             raise ServerError('HTTP-запрос вернул неверный код состояния')
-    except Exception as error:
+    except requests.RequestException as error:
         logging.error(f'Эндпоинт недоступен: {error}')
         raise ServerError(error)
     response = response.json()
@@ -60,7 +66,7 @@ def check_response(response):
     if not isinstance(response, dict):
         raise TypeError('Формат ответа API отличается от ожидаемого')
     list_hw = response.get('homeworks')
-    if 'homeworks' not in response:
+    if list_hw is None:
         logging.error('отсутствуют ожидаемые ключи')
         raise TypeError('отсутствуют ожидаемые ключи')
     if not isinstance(list_hw, list):
@@ -77,7 +83,7 @@ def parse_status(homework):
         if homework_status not in HOMEWORK_STATUSES:
             raise KeyError(f'Статус работы:{homework_status} - '
                            'недокументированный статус домашней работы.')
-    except Exception:
+    except TypeError:
         raise KeyError
     verdict = HOMEWORK_STATUSES[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
@@ -102,16 +108,17 @@ def main():
     """Основная логика работы бота."""
     if not check_tokens():
         raise TokenError
-    bot = telegram.Bot(token=str(TELEGRAM_TOKEN))
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     while True:
         try:
             response = get_api_answer(current_timestamp)
             homework = check_response(response)
             current_timestamp = response.get(
-                'current_date', False) or current_timestamp
+                'current_date', current_timestamp)
             if homework != []:
                 send_message(bot, parse_status(homework))
+                time.sleep(RETRY_TIME)
         except Exception as error:
             msg_error = ''
             message = f'Сбой в работе программы: {error}'
@@ -123,10 +130,4 @@ def main():
 
 
 if __name__ == '__main__':
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(stream=sys.stdout)
-    logger.addHandler(handler)
-    handler.setFormatter(Formatter(
-        '%(asctime)s, %(levelname)s,%(message)s, %(lineno)d, %(funcName)s'))
     main()
