@@ -48,7 +48,7 @@ def send_message(bot, message):
 def get_api_answer(current_timestamp):
     """Функция делает запрос к эндпоинту API-сервиса."""
     timestamp = current_timestamp or int(time.time())
-    params = {'from_date': 0}
+    params = {'from_date': timestamp}
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if response.status_code != HTTPStatus.OK:
@@ -77,16 +77,21 @@ def check_response(response):
 
 def parse_status(homework):
     """Функция извлекает статус домашней работы."""
-    try:
-        homework_name = homework['homework_name']
-        homework_status = homework['status']
-        if homework_status not in HOMEWORK_STATUSES:
-            raise KeyError(f'Статус работы:{homework_status} - '
-                           'недокументированный статус домашней работы.')
-    except TypeError:
-        raise KeyError
+    if not {'homework_name', 'status'}.issubset(homework):
+        keys = []
+        for key in {'homework_name', 'status'}:
+            if key not in homework:
+                keys.append(key)
+        raise KeyError('В ответе отсутствуют ключи: '
+                       f'{keys}')
+    homework_name = homework['homework_name']
+    homework_status = homework['status']
+    if homework_status not in HOMEWORK_STATUSES:
+        raise ValueError(f'Статус работы:{homework_status} - '
+                         'недокументированный статус домашней работы.')
     verdict = HOMEWORK_STATUSES[homework_status]
-    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    return (f'Изменился статус проверки работы "{homework_name}". '
+            f'{verdict}')
 
 
 def check_tokens():
