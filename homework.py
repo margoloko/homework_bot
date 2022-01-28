@@ -40,7 +40,7 @@ def send_message(bot, message):
             text=message,)
         logging.info('Сообщение успешно отправлено')
         return True
-    except telegram.error as error:
+    except telegram.error.BadRequest as error:
         logging.error(f'Cбой при отправке сообщения в Telegram:{error}')
         return False
 
