@@ -48,7 +48,7 @@ def send_message(bot, message):
 def get_api_answer(current_timestamp):
     """Функция делает запрос к эндпоинту API-сервиса."""
     timestamp = current_timestamp or int(time.time())
-    params = {'from_date': timestamp}
+    params = {'from_date': 0}
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if response.status_code != HTTPStatus.OK:
